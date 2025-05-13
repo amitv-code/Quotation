@@ -1,3 +1,4 @@
+tsx
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -8,12 +9,14 @@ import { useRouter } from 'next/navigation';
 import InvoiceHTMLRenderer from '@/components/invoice/InvoiceHTMLRenderer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast'; // Added for toast notifications
 
 export default function InvoicePreviewPage() {
   const [invoiceData, setInvoiceData] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { toast } = useToast(); // Initialize toast
 
   useEffect(() => {
     const data = localStorage.getItem('current_invoice_data');
@@ -22,17 +25,69 @@ export default function InvoicePreviewPage() {
         setInvoiceData(JSON.parse(data));
       } catch (e) {
         console.error("Failed to parse invoice data for preview:", e);
-        // Optionally redirect or show error
+        toast({
+          title: "Error Loading Invoice",
+          description: "Could not load invoice data for preview. It might be corrupted.",
+          variant: "destructive",
+        });
       }
     }
     setLoading(false);
-  }, []);
+  }, [toast]);
 
   const handlePrint = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.focus(); // Required for some browsers
-      iframeRef.current.contentWindow.print();
+    const iframe = iframeRef.current;
+
+    if (!iframe) {
+      console.error("Iframe reference is not available.");
+      toast({
+        title: "Print Error",
+        description: "Invoice preview is not available for printing.",
+        variant: "destructive",
+      });
+      return;
     }
+
+    const iframeWindow = iframe.contentWindow;
+
+    if (!iframeWindow) {
+      console.error("Iframe contentWindow is not available.");
+      toast({
+        title: "Print Error",
+        description: "Invoice content is not ready for printing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Use requestAnimationFrame to ensure the browser has processed pending updates
+    requestAnimationFrame(() => {
+      try {
+        iframeWindow.focus(); // Essential for some browsers
+        
+        if (typeof iframeWindow.print === 'function') {
+          iframeWindow.print();
+        } else {
+          console.error("iframeWindow.print is not a function.");
+          toast({
+            title: "Print Error",
+            description: "Print functionality is not available in the preview.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Error during print:", error);
+        let errorMessage = "Failed to initiate printing.";
+        if (error instanceof Error) {
+          errorMessage += ` Details: ${error.message}`;
+        }
+        toast({
+          title: "Print Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    });
   };
 
   if (loading) {
@@ -94,7 +149,7 @@ export default function InvoicePreviewPage() {
             srcDoc={invoiceHtml}
             title="Invoice Preview"
             className="w-full h-[calc(100vh-200px)] border rounded-md" // Adjust height as needed
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms" // Sandbox for security, allow-scripts for potential print script
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals" // Added allow-modals
           />
         </CardContent>
       </Card>
