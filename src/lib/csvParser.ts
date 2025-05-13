@@ -1,4 +1,5 @@
-import type { Product, ProductFormData } from '@/types';
+
+import type { Product } from '@/types';
 
 // Parses specifically tab-separated values
 export function parseProductCSV(csvText: string): Product[] {
@@ -10,11 +11,25 @@ export function parseProductCSV(csvText: string): Product[] {
     throw new Error("CSV must contain a header row and at least one data row.");
   }
 
-  const headerLine = lines[0].trim();
-  const headers = headerLine.split('\t').map(h => h.trim().toLowerCase());
+  let headerLine = lines[0];
+  // Remove BOM from the start of the header line, if present
+  if (headerLine.charCodeAt(0) === 0xFEFF) {
+    headerLine = headerLine.substring(1);
+  }
+  
+  // Process headers: split by tab, then robustly trim and convert to lowercase
+  const headers = headerLine
+    .split('\t')
+    .map(h => 
+      h
+        .replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '') // More robust trim for various spaces and BOM
+        .toLowerCase()
+    );
   
   const expectedHeaders = ["title", "size", "variant sku", "cost price", "variant price", "gst", "image src"];
+  
   const missingHeaders = expectedHeaders.filter(eh => !headers.includes(eh));
+
   if (missingHeaders.length > 0) {
     throw new Error(`Missing expected CSV headers: ${missingHeaders.join(', ')}. Found: ${headers.join(', ')}`);
   }
