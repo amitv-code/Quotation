@@ -4,7 +4,7 @@ export interface Product {
   size: string;
   sku: string;
   costPrice: number;
-  variantPrice: number;
+  variantPrice: number; // This is now treated as tax-inclusive price from CSV/Product Management
   gst: number; // Percentage, e.g., 12 for 12%
   imageSrc: string;
 }
@@ -26,10 +26,10 @@ export interface InvoiceItem {
   title: string;
   imageSrc: string;
   quantity: number;
-  unitPrice: number; // This is variantPrice from Product
+  unitPrice: number; // This is variantPrice from Product, treated as TAX-INCLUSIVE
   gstRate: number; // GST percentage from Product
-  taxAmount: number; // (unitPrice * quantity) * (gstRate / 100)
-  totalAmount: number; // (unitPrice * quantity) + taxAmount
+  taxAmount: number; // Tax portion of (unitPrice * quantity). Calculated as (unitPrice * quantity * gstRate) / (100 + gstRate)
+  totalAmount: number; // (unitPrice * quantity). This is the total TAX-INCLUSIVE amount for the line item.
 }
 
 export interface CompanyInfo {
@@ -55,9 +55,9 @@ export interface Invoice {
   dueDate: string; // Format YYYY-MM-DD
   customer: Customer;
   items: InvoiceItem[];
-  subtotal: number; // Sum of (unitPrice * quantity) for all items
+  subtotal: number; // Sum of (item.totalAmount - item.taxAmount) for all items. This is the total PRE-TAX value.
   totalTax: number; // Sum of taxAmount for all items
-  grandTotal: number; // subtotal + totalTax
+  grandTotal: number; // subtotal + totalTax. This is also the sum of item.totalAmount (total TAX-INCLUSIVE value).
   companyInfo: CompanyInfo;
   paymentInstructions: PaymentInstructions;
   thankYouMessage?: string;
@@ -69,7 +69,8 @@ export interface ProductFormData {
   size: string;
   sku: string;
   costPrice: string;
-  variantPrice: string;
+  variantPrice: string; // User inputs this, now considered tax-inclusive
   gst: string;
   imageSrc: string;
 }
+

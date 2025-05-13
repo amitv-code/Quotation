@@ -39,10 +39,10 @@ const invoiceItemSchema = z.object({
   title: z.string().min(1),
   imageSrc: z.string().optional(),
   quantity: z.number().min(1, "Quantity must be at least 1"),
-  unitPrice: z.number().min(0),
+  unitPrice: z.number().min(0), // This is tax-inclusive price
   gstRate: z.number().min(0),
-  taxAmount: z.number().min(0),
-  totalAmount: z.number().min(0),
+  taxAmount: z.number().min(0), // Tax part of (unitPrice * quantity)
+  totalAmount: z.number().min(0), // unitPrice * quantity (total inclusive price for item)
 });
 
 const invoiceSchema = z.object({
@@ -121,9 +121,12 @@ export default function InvoiceForm() {
 
 
   const calculateTotals = (currentItems: InvoiceItem[]) => {
-    const subtotal = currentItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+    // item.totalAmount is unitPrice (inclusive) * quantity
+    // item.taxAmount is the tax portion of item.totalAmount
+    const grandTotal = currentItems.reduce((sum, item) => sum + item.totalAmount, 0);
     const totalTax = currentItems.reduce((sum, item) => sum + item.taxAmount, 0);
-    return { subtotal, totalTax, grandTotal: subtotal + totalTax };
+    const subtotal = grandTotal - totalTax; // Subtotal is sum of exclusive prices
+    return { subtotal, totalTax, grandTotal };
   };
 
   const { subtotal, totalTax, grandTotal } = calculateTotals(items);
@@ -132,17 +135,20 @@ export default function InvoiceForm() {
     const product = products.find(p => p.id === productId);
     if (product) {
       const quantity = 1;
-      const taxAmount = (product.variantPrice * quantity * product.gst) / 100;
-      const totalAmount = (product.variantPrice * quantity) + taxAmount;
+      const unitPriceInclusive = product.variantPrice; // product.variantPrice is tax-inclusive
+      const totalAmountForItem = unitPriceInclusive * quantity;
+      // taxAmount = totalInclusive * gstRate / (100 + gstRate)
+      const taxAmountForItem = (totalAmountForItem * product.gst) / (100 + product.gst);
+      
       append({
         productId: product.id,
         title: product.title,
         imageSrc: product.imageSrc,
         quantity: quantity,
-        unitPrice: product.variantPrice,
+        unitPrice: unitPriceInclusive,
         gstRate: product.gst,
-        taxAmount: taxAmount,
-        totalAmount: totalAmount,
+        taxAmount: taxAmountForItem,
+        totalAmount: totalAmountForItem,
       });
     }
   };
@@ -150,9 +156,10 @@ export default function InvoiceForm() {
   const handleQuantityChange = (index: number, newQuantity: number) => {
     const item = items[index];
     if (item && newQuantity > 0) {
-      const taxAmount = (item.unitPrice * newQuantity * item.gstRate) / 100;
-      const totalAmount = (item.unitPrice * newQuantity) + taxAmount;
-      update(index, { ...item, quantity: newQuantity, taxAmount, totalAmount });
+      const unitPriceInclusive = item.unitPrice;
+      const totalAmountForItem = unitPriceInclusive * newQuantity;
+      const taxAmountForItem = (totalAmountForItem * item.gstRate) / (100 + item.gstRate);
+      update(index, { ...item, quantity: newQuantity, taxAmount: taxAmountForItem, totalAmount: totalAmountForItem });
     }
   };
   
@@ -161,19 +168,19 @@ export default function InvoiceForm() {
       ...data,
       issueDate: format(data.issueDate, "yyyy-MM-dd"),
       dueDate: format(data.dueDate, "yyyy-MM-dd"),
-      items: data.items.map(item => ({ // Ensure all fields are present
+      items: data.items.map(item => ({ 
           productId: item.productId,
           title: item.title,
           imageSrc: item.imageSrc || '',
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          unitPrice: item.unitPrice, // Inclusive price
           gstRate: item.gstRate,
-          taxAmount: item.taxAmount,
-          totalAmount: item.totalAmount,
+          taxAmount: item.taxAmount, // Calculated tax part
+          totalAmount: item.totalAmount, // Inclusive total for item
       })),
-      subtotal,
-      totalTax,
-      grandTotal,
+      subtotal, // Sum of (totalAmount - taxAmount) for all items
+      totalTax, // Sum of taxAmount for all items
+      grandTotal, // Sum of totalAmount for all items
       companyInfo: defaultCompanyInfo,
       paymentInstructions: defaultPaymentInstructions,
       thankYouMessage: "Thank you for your business!"
@@ -344,7 +351,9 @@ export default function InvoiceForm() {
                           className="w-20 text-center"
                         />
                       </FormFieldItem>
-                      <span className="text-sm text-muted-foreground text-right">@ ₹{items[index].unitPrice.toFixed(2)}</span>
+                      {/* Displaying unitPrice (inclusive) */}
+                      <span className="text-sm text-muted-foreground text-right">@ ₹{items[index].unitPrice.toFixed(2)} (incl. tax)</span>
+                      {/* Displaying totalAmount (inclusive) */}
                       <span className="text-sm font-semibold text-right">₹{items[index].totalAmount.toFixed(2)}</span>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10">
@@ -364,7 +373,7 @@ export default function InvoiceForm() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal:</span>
+              <span className="text-muted-foreground">Subtotal (Pre-tax):</span>
               <span>₹{subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
@@ -373,7 +382,7 @@ export default function InvoiceForm() {
             </div>
             <Separator />
             <div className="flex justify-between font-bold text-lg">
-              <span>Grand Total:</span>
+              <span>Grand Total (Incl. Tax):</span>
               <span>₹{grandTotal.toFixed(2)}</span>
             </div>
           </CardContent>
