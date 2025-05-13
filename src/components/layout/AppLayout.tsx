@@ -1,11 +1,13 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, FileText, Package, Cpu, Lightbulb } from 'lucide-react'; // Added Lightbulb for AI tool
+import { Menu, FileText, Package, Cpu, Lightbulb, History } from 'lucide-react'; // Added History icon
 
 const navItems = [
   { href: '/', label: 'Create Invoice', icon: FileText },
   { href: '/products', label: 'Manage Products', icon: Package },
+  { href: '/invoices/history', label: 'Invoice History', icon: History },
   { href: '/ai-tools/payment-clauses', label: 'AI Payment Clauses', icon: Lightbulb },
 ];
 

@@ -1,4 +1,5 @@
 
+
 export interface Product {
   id: string;
   title: string;
@@ -27,10 +28,13 @@ export interface InvoiceItem {
   title: string;
   imageSrc: string;
   quantity: number;
-  unitPrice: number; // This is variantPrice from Product, treated as TAX-INCLUSIVE
+  unitPrice: number; // This is variantPrice from Product, TAX-INCLUSIVE
   gstRate: number; // GST percentage from Product
-  taxAmount: number; // Tax portion of (unitPrice * quantity). Calculated as (unitPrice * (gstRate / 100)) * quantity
-  totalAmount: number; // (unitPrice * quantity). This is the total TAX-INCLUSIVE amount for the line item.
+  // Tax amount per unit = unitPrice - (unitPrice / (1 + gstRate/100))
+  // Total tax amount for line item = (unitPrice - (unitPrice / (1 + gstRate/100))) * quantity
+  taxAmount: number; 
+  // Total amount for line item = unitPrice * quantity (This is TAX-INCLUSIVE)
+  totalAmount: number; 
 }
 
 export interface CompanyInfo {
@@ -51,17 +55,20 @@ export interface PaymentInstructions {
 }
 
 export interface Invoice {
+  _id?: string; // Optional: MongoDB ID, string representation of ObjectId
   invoiceNumber: string;
   issueDate: string; // Format YYYY-MM-DD
   dueDate: string; // Format YYYY-MM-DD
   customer: Customer;
   items: InvoiceItem[];
-  subtotal: number; // Sum of (item.totalAmount - item.taxAmount) for all items. This is the total PRE-TAX value.
+  // Subtotal = sum of (totalAmount / (1 + gstRate/100)) for each item. This is PRE-TAX.
+  subtotal: number; 
   totalTax: number; // Sum of taxAmount for all items
   grandTotal: number; // subtotal + totalTax. This is also the sum of item.totalAmount (total TAX-INCLUSIVE value).
   companyInfo: CompanyInfo;
   paymentInstructions: PaymentInstructions;
   thankYouMessage?: string;
+  createdAt?: Date; // For MongoDB timestamp
 }
 
 // For product form, allow string inputs before conversion
@@ -75,3 +82,7 @@ export interface ProductFormData {
   imageSrc: string;
 }
 
+export type SavedInvoice = Invoice & {
+  _id: string; // MongoDB ID will always be present for saved invoices
+  createdAt: Date;
+};

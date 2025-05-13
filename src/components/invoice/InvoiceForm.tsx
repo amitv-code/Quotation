@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, PlusCircle, Trash2, Eye, Save } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Eye, Save, Loader2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,7 @@ export default function InvoiceForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
 
 
   const methods = useForm<InvoiceFormData>({
@@ -120,7 +121,8 @@ export default function InvoiceForm() {
   const calculateTotals = (currentItems: InvoiceItem[]) => {
     const grandTotal = currentItems.reduce((sum, item) => sum + item.totalAmount, 0);
     const totalTax = currentItems.reduce((sum, item) => sum + item.taxAmount, 0);
-    const subtotal = grandTotal - totalTax; 
+    // Subtotal (pre-tax) = Grand Total (inclusive) - Total Tax
+    const subtotal = grandTotal - totalTax;
     return { subtotal, totalTax, grandTotal };
   };
 
@@ -132,15 +134,18 @@ export default function InvoiceForm() {
       const quantity = 1;
       const unitPriceInclusive = product.variantPrice; 
       const totalAmountForItem = unitPriceInclusive * quantity;
-      // New Tax Calculation: Tax is gstRate percentage of the inclusive price
-      const taxAmountForItem = (unitPriceInclusive * (product.gst / 100)) * quantity;
+      
+      // Tax amount per unit = unitPriceInclusive - (unitPriceInclusive / (1 + (gstRate / 100)))
+      // Total tax amount for line item = (unitPriceInclusive - (unitPriceInclusive / (1 + (gstRate / 100)))) * quantity
+      const taxAmountPerUnit = unitPriceInclusive - (unitPriceInclusive / (1 + (product.gst / 100)));
+      const taxAmountForItem = taxAmountPerUnit * quantity;
       
       append({
         productId: product.id,
         title: product.title,
         imageSrc: product.imageSrc,
         quantity: quantity,
-        unitPrice: unitPriceInclusive,
+        unitPrice: unitPriceInclusive, // Store the tax-inclusive unit price
         gstRate: product.gst,
         taxAmount: taxAmountForItem,
         totalAmount: totalAmountForItem,
@@ -153,14 +158,22 @@ export default function InvoiceForm() {
     if (item && newQuantity > 0) {
       const unitPriceInclusive = item.unitPrice;
       const totalAmountForItem = unitPriceInclusive * newQuantity;
-      // New Tax Calculation: Tax is gstRate percentage of the inclusive price
-      const taxAmountForItem = (unitPriceInclusive * (item.gstRate / 100)) * newQuantity;
-      update(index, { ...item, quantity: newQuantity, taxAmount: taxAmountForItem, totalAmount: totalAmountForItem });
+      
+      const taxAmountPerUnit = unitPriceInclusive - (unitPriceInclusive / (1 + (item.gstRate / 100)));
+      const taxAmountForItem = taxAmountPerUnit * newQuantity;
+
+      update(index, { 
+        ...item, 
+        quantity: newQuantity, 
+        taxAmount: taxAmountForItem, 
+        totalAmount: totalAmountForItem 
+      });
     }
   };
   
-  const onSubmit = (data: InvoiceFormData) => {
-    const completeInvoiceData: Invoice = {
+  const onSubmit = async (data: InvoiceFormData) => {
+    setIsSaving(true);
+    const completeInvoiceData: Omit<Invoice, '_id' | 'createdAt'> = { // Prepare data for DB (without _id and createdAt)
       ...data,
       issueDate: format(data.issueDate, "yyyy-MM-dd"),
       dueDate: format(data.dueDate, "yyyy-MM-dd"),
@@ -183,23 +196,43 @@ export default function InvoiceForm() {
     };
 
     try {
+      // Save to localStorage for immediate preview
       localStorage.setItem('current_invoice_data', JSON.stringify(completeInvoiceData));
+
+      // Save to MongoDB via API
+      const response = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(completeInvoiceData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to save invoice to database (status: ${response.status})`);
+      }
+      
+      const result = await response.json();
+
       const newInvoiceNum = lastInvoiceNumber + 1;
       localStorage.setItem('invoiceflow_lastInvoiceNum', String(newInvoiceNum));
       setLastInvoiceNumber(newInvoiceNum); 
 
       toast({
-        title: "Invoice Data Saved",
-        description: "Invoice data prepared for preview.",
+        title: "Invoice Saved & Prepared",
+        description: `Invoice ${completeInvoiceData.invoiceNumber} saved to database (ID: ${result.invoiceId}) and ready for preview.`,
       });
       router.push('/invoice/preview');
     } catch (e) {
-      console.error("Error saving invoice to localStorage:", e);
+      console.error("Error processing invoice:", e);
       toast({
-        title: "Storage Error",
-        description: "Could not save invoice data. LocalStorage might be full.",
+        title: "Processing Error",
+        description: e instanceof Error ? e.message : "Could not save or prepare invoice.",
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -214,7 +247,7 @@ export default function InvoiceForm() {
           </CardHeader>
           <CardContent className="grid md:grid-cols-3 gap-6">
             <FormFieldItem name="invoiceNumber" label="Invoice Number" error={errors.invoiceNumber?.message}>
-              <Input {...methods.register("invoiceNumber")} />
+              <Input {...methods.register("invoiceNumber")} readOnly className="bg-muted/50" />
             </FormFieldItem>
             <FormFieldItem name="issueDate" label="Issue Date" error={errors.issueDate?.message}>
               <Controller
@@ -382,11 +415,18 @@ export default function InvoiceForm() {
         </Card>
 
         <div className="flex justify-end gap-2">
-           <Button type="button" variant="outline" onClick={() => { methods.reset(); setValue('invoiceNumber', `INV-${String(lastInvoiceNumber + 1).padStart(4, '0')}`); }}>
+           <Button type="button" variant="outline" onClick={() => { 
+               const currentInvNum = lastInvoiceNumber; // Capture before reset
+               methods.reset(); 
+               setValue('invoiceNumber', `INV-${String(currentInvNum + 1).padStart(4, '0')}`);
+             }}
+             disabled={isSaving}
+           >
             Clear Form
           </Button>
-          <Button type="submit" variant="default" className="bg-accent hover:bg-accent/90">
-            <Eye className="mr-2 h-4 w-4" /> Preview & Generate Invoice
+          <Button type="submit" variant="default" className="bg-accent hover:bg-accent/90" disabled={isSaving}>
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
+            {isSaving ? 'Processing...' : 'Preview & Generate Invoice'}
           </Button>
         </div>
       </form>
@@ -414,4 +454,3 @@ function FormFieldItem({ name, label, error, children, srOnlyLabel = false, noBo
     </div>
   );
 }
-
