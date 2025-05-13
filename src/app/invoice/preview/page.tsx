@@ -1,4 +1,3 @@
-tsx
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -9,14 +8,14 @@ import { useRouter } from 'next/navigation';
 import InvoiceHTMLRenderer from '@/components/invoice/InvoiceHTMLRenderer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast'; // Added for toast notifications
+import { useToast } from '@/hooks/use-toast';
 
 export default function InvoicePreviewPage() {
   const [invoiceData, setInvoiceData] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { toast } = useToast(); // Initialize toast
+  const { toast } = useToast();
 
   useEffect(() => {
     const data = localStorage.getItem('current_invoice_data');
@@ -37,58 +36,49 @@ export default function InvoicePreviewPage() {
 
   const handlePrint = () => {
     const iframe = iframeRef.current;
-
-    if (!iframe) {
-      console.error("Iframe reference is not available.");
+    if (!iframe || !iframe.contentWindow) {
       toast({
         title: "Print Error",
-        description: "Invoice preview is not available for printing.",
+        description: "Invoice preview is not available or not ready for printing.",
         variant: "destructive",
       });
       return;
     }
 
     const iframeWindow = iframe.contentWindow;
+    
+    // Focus the iframe's window before printing
+    iframeWindow.focus();
 
-    if (!iframeWindow) {
-      console.error("Iframe contentWindow is not available.");
-      toast({
-        title: "Print Error",
-        description: "Invoice content is not ready for printing.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Use requestAnimationFrame to ensure the browser has processed pending updates
-    requestAnimationFrame(() => {
+    // Use a small timeout to ensure content is fully rendered and focused
+    // Some browsers might need this, especially if there are complex styles or scripts in the iframe
+    setTimeout(() => {
       try {
-        iframeWindow.focus(); // Essential for some browsers
-        
         if (typeof iframeWindow.print === 'function') {
           iframeWindow.print();
         } else {
-          console.error("iframeWindow.print is not a function.");
+          // Fallback for browsers where iframe.contentWindow.print might not be directly available
+          // or due to security restrictions in some edge cases.
+          // This attempts to print the main window, which is not ideal but better than nothing.
+          // A more robust solution might involve opening the HTML in a new tab.
+          window.print(); 
           toast({
-            title: "Print Error",
-            description: "Print functionality is not available in the preview.",
-            variant: "destructive",
+            title: "Print Note",
+            description: "Attempted to print. If the main page printed instead of just the invoice, please try using your browser's print option directly on the preview.",
+            variant: "default",
           });
         }
       } catch (error) {
-        console.error("Error during print:", error);
-        let errorMessage = "Failed to initiate printing.";
-        if (error instanceof Error) {
-          errorMessage += ` Details: ${error.message}`;
-        }
+        console.error("Error during print operation:", error);
         toast({
           title: "Print Error",
-          description: errorMessage,
+          description: `Failed to initiate printing. ${error instanceof Error ? error.message : ''}`,
           variant: "destructive",
         });
       }
-    });
+    }, 100); // 100ms delay
   };
+
 
   if (loading) {
     return (
@@ -148,8 +138,8 @@ export default function InvoicePreviewPage() {
             ref={iframeRef}
             srcDoc={invoiceHtml}
             title="Invoice Preview"
-            className="w-full h-[calc(100vh-200px)] border rounded-md" // Adjust height as needed
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals" // Added allow-modals
+            className="w-full h-[calc(100vh-200px)] border rounded-md"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
           />
         </CardContent>
       </Card>
