@@ -1,3 +1,4 @@
+
 export interface Product {
   id: string;
   title: string;
@@ -28,7 +29,7 @@ export interface InvoiceItem {
   quantity: number;
   unitPrice: number; // This is variantPrice from Product, treated as TAX-INCLUSIVE
   gstRate: number; // GST percentage from Product
-  taxAmount: number; // Tax portion of (unitPrice * quantity). Calculated as (unitPrice * quantity * gstRate) / (100 + gstRate)
+  taxAmount: number; // Tax portion of (unitPrice * quantity). Calculated as (unitPrice * (gstRate / 100)) * quantity
   totalAmount: number; // (unitPrice * quantity). This is the total TAX-INCLUSIVE amount for the line item.
 }
 

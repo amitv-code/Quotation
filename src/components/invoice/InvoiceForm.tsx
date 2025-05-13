@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { useProducts } from '@/contexts/ProductContext';
 import ProductSearch from '@/components/invoice/ProductSearch';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation'; // Corrected import for App Router
+import { useRouter } from 'next/navigation'; 
 import { defaultCompanyInfo, defaultPaymentInstructions } from '@/lib/invoiceDefaults';
 
 const customerSchema = z.object({
@@ -41,7 +42,7 @@ const invoiceItemSchema = z.object({
   quantity: z.number().min(1, "Quantity must be at least 1"),
   unitPrice: z.number().min(0), // This is tax-inclusive price
   gstRate: z.number().min(0),
-  taxAmount: z.number().min(0), // Tax part of (unitPrice * quantity)
+  taxAmount: z.number().min(0), 
   totalAmount: z.number().min(0), // unitPrice * quantity (total inclusive price for item)
 });
 
@@ -51,7 +52,6 @@ const invoiceSchema = z.object({
   dueDate: z.date({ required_error: "Due date is required."}),
   customer: customerSchema,
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
-  // companyInfo and paymentInstructions will be added from defaults
 });
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
@@ -70,7 +70,7 @@ export default function InvoiceForm() {
     defaultValues: {
       invoiceNumber: '',
       issueDate: new Date(),
-      dueDate: new Date(new Date().setDate(new Date().getDate() + 30)), // Default due date 30 days from now
+      dueDate: new Date(new Date().setDate(new Date().getDate() + 30)), 
       customer: {
         name: '',
         company: '',
@@ -94,7 +94,6 @@ export default function InvoiceForm() {
 
   const items = watch("items");
 
-  // Load customer data from localStorage
   useEffect(() => {
     const storedCustomer = localStorage.getItem(LOCAL_STORAGE_CUSTOMER_KEY);
     if (storedCustomer) {
@@ -105,7 +104,6 @@ export default function InvoiceForm() {
         console.error("Failed to parse customer data from localStorage", e);
       }
     }
-    // Load last invoice number
     const storedLastInvoiceNum = localStorage.getItem('invoiceflow_lastInvoiceNum');
     const currentNum = storedLastInvoiceNum ? parseInt(storedLastInvoiceNum, 10) : 0;
     setLastInvoiceNumber(currentNum);
@@ -113,7 +111,6 @@ export default function InvoiceForm() {
 
   }, [setValue]);
 
-  // Save customer data to localStorage
   const customerData = watch('customer');
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_CUSTOMER_KEY, JSON.stringify(customerData));
@@ -121,11 +118,9 @@ export default function InvoiceForm() {
 
 
   const calculateTotals = (currentItems: InvoiceItem[]) => {
-    // item.totalAmount is unitPrice (inclusive) * quantity
-    // item.taxAmount is the tax portion of item.totalAmount
     const grandTotal = currentItems.reduce((sum, item) => sum + item.totalAmount, 0);
     const totalTax = currentItems.reduce((sum, item) => sum + item.taxAmount, 0);
-    const subtotal = grandTotal - totalTax; // Subtotal is sum of exclusive prices
+    const subtotal = grandTotal - totalTax; 
     return { subtotal, totalTax, grandTotal };
   };
 
@@ -135,10 +130,10 @@ export default function InvoiceForm() {
     const product = products.find(p => p.id === productId);
     if (product) {
       const quantity = 1;
-      const unitPriceInclusive = product.variantPrice; // product.variantPrice is tax-inclusive
+      const unitPriceInclusive = product.variantPrice; 
       const totalAmountForItem = unitPriceInclusive * quantity;
-      // taxAmount = totalInclusive * gstRate / (100 + gstRate)
-      const taxAmountForItem = (totalAmountForItem * product.gst) / (100 + product.gst);
+      // New Tax Calculation: Tax is gstRate percentage of the inclusive price
+      const taxAmountForItem = (unitPriceInclusive * (product.gst / 100)) * quantity;
       
       append({
         productId: product.id,
@@ -158,7 +153,8 @@ export default function InvoiceForm() {
     if (item && newQuantity > 0) {
       const unitPriceInclusive = item.unitPrice;
       const totalAmountForItem = unitPriceInclusive * newQuantity;
-      const taxAmountForItem = (totalAmountForItem * item.gstRate) / (100 + item.gstRate);
+      // New Tax Calculation: Tax is gstRate percentage of the inclusive price
+      const taxAmountForItem = (unitPriceInclusive * (item.gstRate / 100)) * newQuantity;
       update(index, { ...item, quantity: newQuantity, taxAmount: taxAmountForItem, totalAmount: totalAmountForItem });
     }
   };
@@ -173,14 +169,14 @@ export default function InvoiceForm() {
           title: item.title,
           imageSrc: item.imageSrc || '',
           quantity: item.quantity,
-          unitPrice: item.unitPrice, // Inclusive price
+          unitPrice: item.unitPrice, 
           gstRate: item.gstRate,
-          taxAmount: item.taxAmount, // Calculated tax part
-          totalAmount: item.totalAmount, // Inclusive total for item
+          taxAmount: item.taxAmount, 
+          totalAmount: item.totalAmount, 
       })),
-      subtotal, // Sum of (totalAmount - taxAmount) for all items
-      totalTax, // Sum of taxAmount for all items
-      grandTotal, // Sum of totalAmount for all items
+      subtotal, 
+      totalTax, 
+      grandTotal, 
       companyInfo: defaultCompanyInfo,
       paymentInstructions: defaultPaymentInstructions,
       thankYouMessage: "Thank you for your business!"
@@ -188,10 +184,9 @@ export default function InvoiceForm() {
 
     try {
       localStorage.setItem('current_invoice_data', JSON.stringify(completeInvoiceData));
-      // Update and save last invoice number
       const newInvoiceNum = lastInvoiceNumber + 1;
       localStorage.setItem('invoiceflow_lastInvoiceNum', String(newInvoiceNum));
-      setLastInvoiceNumber(newInvoiceNum); // Update state for next potential invoice
+      setLastInvoiceNumber(newInvoiceNum); 
 
       toast({
         title: "Invoice Data Saved",
@@ -351,9 +346,7 @@ export default function InvoiceForm() {
                           className="w-20 text-center"
                         />
                       </FormFieldItem>
-                      {/* Displaying unitPrice (inclusive) */}
                       <span className="text-sm text-muted-foreground text-right">@ ₹{items[index].unitPrice.toFixed(2)} (incl. tax)</span>
-                      {/* Displaying totalAmount (inclusive) */}
                       <span className="text-sm font-semibold text-right">₹{items[index].totalAmount.toFixed(2)}</span>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10">
