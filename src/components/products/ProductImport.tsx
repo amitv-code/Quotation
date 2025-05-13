@@ -37,8 +37,8 @@ export default function ProductImport() {
       const text = e.target?.result as string;
       try {
         const parsedProducts: Product[] = parseProductCSV(text);
-        if (parsedProducts.length === 0 && text.trim().split(/\\r?\\n/).length > 1) {
-           setError("No valid products found in the file. Please check the file format and content. Ensure headers are: Title, Size, Variant SKU, Cost Price, Variant Price, GST, Image Src.");
+        if (parsedProducts.length === 0 && text.trim().split(/\r?\n/).length > 1) {
+           setError("No valid products found in the file. Please check the file format (TSV or CSV) and content. Ensure headers are: Title, Size, Variant SKU, Cost Price, Variant Price, GST, Image Src.");
            toast({
             title: "Import Failed",
             description: "No valid products found. Check format.",
@@ -52,6 +52,11 @@ export default function ProductImport() {
             variant: "default",
           });
           setFile(null); // Reset file input
+          // Clear the actual file input value
+          const fileInput = document.getElementById('product-file-input') as HTMLInputElement;
+          if (fileInput) {
+            fileInput.value = '';
+          }
         } else {
            setError("File seems empty or contains only headers.");
            toast({
@@ -61,11 +66,11 @@ export default function ProductImport() {
           });
         }
       } catch (err: any) {
-        console.error('Error parsing CSV:', err);
-        setError(err.message || 'Failed to parse the TSV file. Ensure it is correctly formatted with tab separators and includes all required columns.');
+        console.error('Error parsing file:', err);
+        setError(err.message || 'Failed to parse the file. Ensure it is correctly formatted (TSV or CSV) and includes all required columns.');
         toast({
           title: "Import Error",
-          description: err.message || "Failed to parse TSV file.",
+          description: err.message || "Failed to parse file.",
           variant: "destructive",
         });
       } finally {
@@ -88,8 +93,9 @@ export default function ProductImport() {
     <div className="space-y-4">
       <div className="flex items-center space-x-2">
         <Input
+          id="product-file-input"
           type="file"
-          accept=".tsv,.txt,.csv" // Accept TSV, TXT, and CSV (though parser expects TSV)
+          accept=".tsv,.txt,.csv" // Accept TSV, TXT, and CSV
           onChange={handleFileChange}
           className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
           aria-label="Product data file"
@@ -110,11 +116,13 @@ export default function ProductImport() {
         <AlertCircle className="h-4 w-4 text-primary" />
         <AlertTitle className="text-primary">File Format Instructions</AlertTitle>
         <AlertDescription>
-          Please upload a Tab Separated Values (TSV) file.
+          Please upload a Tab Separated Values (TSV) or Comma Separated Values (CSV) file.
           Required headers (case-insensitive): <strong>Title, Size, Variant SKU, Cost Price, Variant Price, GST, Image Src</strong>.
+          The parser will attempt to auto-detect if your file is TSV or CSV based on the header row.
           Ensure numeric fields (Cost Price, Variant Price, GST) contain valid numbers.
         </AlertDescription>
       </Alert>
     </div>
   );
 }
+

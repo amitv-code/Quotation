@@ -1,14 +1,14 @@
 
 import type { Product } from '@/types';
 
-// Parses specifically tab-separated values
-export function parseProductCSV(csvText: string): Product[] {
+// Parses comma-separated values (CSV) or tab-separated values (TSV)
+export function parseProductCSV(fileContent: string): Product[] {
   const products: Product[] = [];
-  const lines = csvText.trim().split(/\r?\n/);
+  const lines = fileContent.trim().split(/\r?\n/);
 
   if (lines.length < 2) {
     // Needs header and at least one data line
-    throw new Error("CSV must contain a header row and at least one data row.");
+    throw new Error("File must contain a header row and at least one data row.");
   }
 
   let headerLine = lines[0];
@@ -16,10 +16,19 @@ export function parseProductCSV(csvText: string): Product[] {
   if (headerLine.charCodeAt(0) === 0xFEFF) {
     headerLine = headerLine.substring(1);
   }
+
+  // Detect delimiter (comma or tab)
+  const commaCount = (headerLine.match(/,/g) || []).length;
+  const tabCount = (headerLine.match(/\t/g) || []).length;
   
-  // Process headers: split by tab, then robustly trim and convert to lowercase
+  let delimiter = '\t'; // Default to tab
+  if (commaCount > tabCount) {
+    delimiter = ',';
+  }
+  
+  // Process headers: split by detected delimiter, then robustly trim and convert to lowercase
   const headers = headerLine
-    .split('\t')
+    .split(delimiter)
     .map(h => 
       h
         .replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '') // More robust trim for various spaces and BOM
@@ -31,7 +40,7 @@ export function parseProductCSV(csvText: string): Product[] {
   const missingHeaders = expectedHeaders.filter(eh => !headers.includes(eh));
 
   if (missingHeaders.length > 0) {
-    throw new Error(`Missing expected CSV headers: ${missingHeaders.join(', ')}. Found: ${headers.join(', ')}`);
+    throw new Error(`Missing expected headers: ${missingHeaders.join(', ')}. Found in file: ${headers.join(', ')}. Please ensure your ${delimiter === ',' ? 'CSV' : 'TSV'} file has the correct headers.`);
   }
 
   const titleIndex = headers.indexOf("title");
@@ -46,7 +55,13 @@ export function parseProductCSV(csvText: string): Product[] {
     const line = lines[i].trim();
     if (!line) continue; // Skip empty lines
 
-    const values = line.split('\t').map(v => v.trim());
+    const values = line.split(delimiter).map(v => v.trim());
+
+    // Ensure all necessary columns are present for the row
+    if (values.length < Math.max(titleIndex, skuIndex, costPriceIndex, variantPriceIndex, gstIndex, imageSrcIndex) + 1) {
+        console.warn(`Skipping row ${i + 1} due to insufficient columns for detected delimiter '${delimiter}'. Expected at least ${Math.max(titleIndex, skuIndex, costPriceIndex, variantPriceIndex, gstIndex, imageSrcIndex) + 1} columns, got ${values.length}. Line: "${line}"`);
+        continue;
+    }
 
     const title = values[titleIndex];
     const sku = values[skuIndex];
@@ -61,7 +76,7 @@ export function parseProductCSV(csvText: string): Product[] {
     const gst = parseFloat(values[gstIndex]);
 
     if (isNaN(costPrice) || isNaN(variantPrice) || isNaN(gst)) {
-      console.warn(`Skipping row ${i+1} ('${title}') due to invalid numeric value(s).`);
+      console.warn(`Skipping row ${i+1} ('${title}') due to invalid numeric value(s). CostPrice: ${values[costPriceIndex]}, VariantPrice: ${values[variantPriceIndex]}, GST: ${values[gstIndex]}`);
       continue;
     }
 
@@ -78,3 +93,4 @@ export function parseProductCSV(csvText: string): Product[] {
   }
   return products;
 }
+
