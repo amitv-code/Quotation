@@ -133,19 +133,17 @@ export default function InvoiceForm() {
     if (product) {
       const quantity = 1;
       const unitPriceInclusive = product.variantPrice; 
-      const totalAmountForItem = unitPriceInclusive * quantity;
       
-      // Tax amount per unit = unitPriceInclusive - (unitPriceInclusive / (1 + (gstRate / 100)))
-      // Total tax amount for line item = (unitPriceInclusive - (unitPriceInclusive / (1 + (gstRate / 100)))) * quantity
       const taxAmountPerUnit = unitPriceInclusive - (unitPriceInclusive / (1 + (product.gst / 100)));
       const taxAmountForItem = taxAmountPerUnit * quantity;
+      const totalAmountForItem = unitPriceInclusive * quantity;
       
       append({
         productId: product.id,
         title: product.title,
         imageSrc: product.imageSrc,
         quantity: quantity,
-        unitPrice: unitPriceInclusive, // Store the tax-inclusive unit price
+        unitPrice: unitPriceInclusive, 
         gstRate: product.gst,
         taxAmount: taxAmountForItem,
         totalAmount: totalAmountForItem,
@@ -157,10 +155,10 @@ export default function InvoiceForm() {
     const item = items[index];
     if (item && newQuantity > 0) {
       const unitPriceInclusive = item.unitPrice;
-      const totalAmountForItem = unitPriceInclusive * newQuantity;
       
       const taxAmountPerUnit = unitPriceInclusive - (unitPriceInclusive / (1 + (item.gstRate / 100)));
       const taxAmountForItem = taxAmountPerUnit * newQuantity;
+      const totalAmountForItem = unitPriceInclusive * newQuantity;
 
       update(index, { 
         ...item, 
@@ -170,10 +168,28 @@ export default function InvoiceForm() {
       });
     }
   };
+
+  const handleUnitPriceChange = (index: number, newUnitPrice: number) => {
+    const item = items[index];
+    if (item && newUnitPrice >= 0) {
+      const quantity = item.quantity;
+      
+      const taxAmountPerUnit = newUnitPrice - (newUnitPrice / (1 + (item.gstRate / 100)));
+      const taxAmountForItem = taxAmountPerUnit * quantity;
+      const totalAmountForItem = newUnitPrice * quantity;
+
+      update(index, { 
+        ...item, 
+        unitPrice: newUnitPrice, 
+        taxAmount: taxAmountForItem, 
+        totalAmount: totalAmountForItem 
+      });
+    }
+  };
   
   const onSubmit = async (data: InvoiceFormData) => {
     setIsSaving(true);
-    const completeInvoiceData: Omit<Invoice, '_id' | 'createdAt'> = { // Prepare data for DB (without _id and createdAt)
+    const completeInvoiceData: Omit<Invoice, '_id' | 'createdAt'> = { 
       ...data,
       issueDate: format(data.issueDate, "yyyy-MM-dd"),
       dueDate: format(data.dueDate, "yyyy-MM-dd"),
@@ -196,10 +212,8 @@ export default function InvoiceForm() {
     };
 
     try {
-      // Save to localStorage for immediate preview
       localStorage.setItem('current_invoice_data', JSON.stringify(completeInvoiceData));
 
-      // Save to MongoDB via API
       const response = await fetch('/api/invoices', {
         method: 'POST',
         headers: {
@@ -368,18 +382,35 @@ export default function InvoiceForm() {
               <div className="mt-4 space-y-4">
                 {fields.map((field, index) => (
                   <div key={field.id} className="flex items-center gap-4 p-4 border rounded-lg bg-muted/20">
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                      <span className="font-medium col-span-2 truncate" title={items[index].title}>{items[index].title}</span>
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-x-4 gap-y-2 items-center">
+                      <span className="font-medium md:col-span-2 truncate" title={items[index].title}>{items[index].title}</span>
+                      
                       <FormFieldItem name={`items.${index}.quantity`} label="Quantity" srOnlyLabel={true} noBottomMargin>
                         <Input
                           type="number"
                           min="1"
                           {...methods.register(`items.${index}.quantity`, { valueAsNumber: true })}
                           onChange={(e) => handleQuantityChange(index, parseInt(e.target.value,10) || 1)}
-                          className="w-20 text-center"
+                          className="w-full md:w-20 text-center"
                         />
                       </FormFieldItem>
-                      <span className="text-sm text-muted-foreground text-right">@ ₹{items[index].unitPrice.toFixed(2)} (incl. tax)</span>
+
+                      <FormFieldItem name={`items.${index}.unitPrice`} label="Unit Price (incl. tax)" srOnlyLabel={true} noBottomMargin>
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">₹</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            {...methods.register(`items.${index}.unitPrice`, { valueAsNumber: true })}
+                            onChange={(e) => handleUnitPriceChange(index, parseFloat(e.target.value) || 0)}
+                            className="w-full md:w-28 text-right pl-7 pr-2" 
+                          />
+                        </div>
+                      </FormFieldItem>
+                      
+                      <span className="text-sm text-muted-foreground text-center">GST: {items[index].gstRate.toFixed(0)}%</span>
+                      
                       <span className="text-sm font-semibold text-right">₹{items[index].totalAmount.toFixed(2)}</span>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10">
@@ -416,9 +447,20 @@ export default function InvoiceForm() {
 
         <div className="flex justify-end gap-2">
            <Button type="button" variant="outline" onClick={() => { 
-               const currentInvNum = lastInvoiceNumber; // Capture before reset
+               const currentInvNum = lastInvoiceNumber; 
                methods.reset(); 
                setValue('invoiceNumber', `INV-${String(currentInvNum + 1).padStart(4, '0')}`);
+               // Restore default dates after reset
+               setValue('issueDate', new Date());
+               setValue('dueDate', new Date(new Date().setDate(new Date().getDate() + 30)));
+               // Attempt to restore customer data if it was in localStorage
+                const storedCustomer = localStorage.getItem(LOCAL_STORAGE_CUSTOMER_KEY);
+                if (storedCustomer) {
+                  try {
+                    const customerData = JSON.parse(storedCustomer);
+                    setValue('customer', customerData, { shouldValidate: true });
+                  } catch (e) { /* ignore */ }
+                }
              }}
              disabled={isSaving}
            >
@@ -454,3 +496,4 @@ function FormFieldItem({ name, label, error, children, srOnlyLabel = false, noBo
     </div>
   );
 }
+
