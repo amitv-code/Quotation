@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { useProducts } from '@/contexts/ProductContext';
 import ProductSearch from '@/components/invoice/ProductSearch';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 import { defaultCompanyInfo, defaultPaymentInstructions } from '@/lib/invoiceDefaults';
 
 const customerSchema = z.object({
@@ -40,10 +40,9 @@ const invoiceItemSchema = z.object({
   title: z.string().min(1),
   imageSrc: z.string().optional(),
   quantity: z.number().min(1, "Quantity must be at least 1"),
-  unitPrice: z.number().min(0), // This is tax-inclusive price
+  unitPrice: z.number().min(0, "Unit price must be 0 or greater"), // This is tax-inclusive price
   gstRate: z.number().min(0),
-  // Tax amount = (unitPrice * quantity) - ( (unitPrice * quantity) / (1 + gstRate/100) )
-  taxAmount: z.number().min(0), 
+  taxAmount: z.number().min(0),
   totalAmount: z.number().min(0), // unitPrice * quantity (total inclusive price for item)
 });
 
@@ -72,7 +71,7 @@ export default function InvoiceForm() {
     defaultValues: {
       invoiceNumber: '',
       issueDate: new Date(),
-      dueDate: new Date(new Date().setDate(new Date().getDate() + 30)), 
+      dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
       customer: {
         name: '',
         company: '',
@@ -89,12 +88,12 @@ export default function InvoiceForm() {
   });
 
   const { control, handleSubmit, watch, setValue, formState: { errors }, register } = methods;
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({ // `update` is no longer used directly here for quantity/price changes
     control,
     name: "items",
   });
 
-  const items = watch("items");
+  const watchedItems = watch("items");
 
   useEffect(() => {
     const storedCustomer = localStorage.getItem(LOCAL_STORAGE_CUSTOMER_KEY);
@@ -119,29 +118,58 @@ export default function InvoiceForm() {
   }, [customerData]);
 
 
+  // useEffect to recalculate taxAmount and totalAmount when quantity or unitPrice changes
+  useEffect(() => {
+    watchedItems.forEach((item, index) => {
+      const { unitPrice, quantity, gstRate } = item;
+
+      const numUnitPrice = Number(unitPrice);
+      const numQuantity = Number(quantity);
+      const numGstRate = Number(gstRate);
+
+      if (!isNaN(numUnitPrice) && numUnitPrice >= 0 &&
+          !isNaN(numQuantity) && numQuantity > 0 &&
+          !isNaN(numGstRate) && numGstRate >= 0) {
+
+        const taxableValue = numUnitPrice / (1 + (numGstRate / 100));
+        const calculatedTaxAmount = (numUnitPrice - taxableValue) * numQuantity;
+        const calculatedTotalAmount = numUnitPrice * numQuantity;
+
+        if (item.taxAmount !== calculatedTaxAmount) {
+          setValue(`items.${index}.taxAmount`, calculatedTaxAmount, { shouldDirty: true, shouldValidate: false });
+        }
+        if (item.totalAmount !== calculatedTotalAmount) {
+          setValue(`items.${index}.totalAmount`, calculatedTotalAmount, { shouldDirty: true, shouldValidate: false });
+        }
+      }
+    });
+  }, [watchedItems, setValue]);
+
+
   const calculateTotals = (currentItems: InvoiceItem[]) => {
-    const grandTotal = currentItems.reduce((sum, item) => sum + item.totalAmount, 0);
-    const totalTax = currentItems.reduce((sum, item) => sum + item.taxAmount, 0);
+    const grandTotal = currentItems.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
+    const totalTax = currentItems.reduce((sum, item) => sum + (Number(item.taxAmount) || 0), 0);
     const subtotal = grandTotal - totalTax;
     return { subtotal, totalTax, grandTotal };
   };
 
-  const { subtotal, totalTax, grandTotal } = calculateTotals(items);
+  const { subtotal, totalTax, grandTotal } = calculateTotals(watchedItems);
 
   const handleAddProduct = (productId: string) => {
     const product = products.find(p => p.id === productId);
     if (product) {
       const quantity = 1;
-      const unitPriceInclusive = product.variantPrice; 
+      const unitPriceInclusive = product.variantPrice;
+      const taxableValue = unitPriceInclusive / (1 + (product.gst / 100));
+      const taxAmountForItem = (unitPriceInclusive - taxableValue) * quantity;
       const totalAmountForItem = unitPriceInclusive * quantity;
-      const taxAmountForItem = totalAmountForItem - (totalAmountForItem / (1 + (product.gst / 100)));
-      
+
       append({
         productId: product.id,
         title: product.title,
         imageSrc: product.imageSrc,
         quantity: quantity,
-        unitPrice: unitPriceInclusive, 
+        unitPrice: unitPriceInclusive,
         gstRate: product.gst,
         taxAmount: taxAmountForItem,
         totalAmount: totalAmountForItem,
@@ -149,57 +177,25 @@ export default function InvoiceForm() {
     }
   };
 
-  const handleQuantityChange = (index: number, newQuantity: number) => {
-    const item = items[index];
-    if (item && newQuantity > 0) {
-      const unitPriceInclusive = item.unitPrice;
-      const totalAmountForItem = unitPriceInclusive * newQuantity;
-      const taxAmountForItem = totalAmountForItem - (totalAmountForItem / (1 + (item.gstRate / 100)));
-
-      update(index, { 
-        ...item, 
-        quantity: newQuantity, 
-        taxAmount: taxAmountForItem, 
-        totalAmount: totalAmountForItem 
-      });
-    }
-  };
-
-  const handleUnitPriceChange = (index: number, newUnitPrice: number) => {
-    const item = items[index];
-    if (item && newUnitPrice >= 0) {
-      const quantity = item.quantity;
-      const totalAmountForItem = newUnitPrice * quantity;
-      const taxAmountForItem = totalAmountForItem - (totalAmountForItem / (1 + (item.gstRate / 100)));
-
-      update(index, { 
-        ...item, 
-        unitPrice: newUnitPrice, 
-        taxAmount: taxAmountForItem, 
-        totalAmount: totalAmountForItem 
-      });
-    }
-  };
-  
   const onSubmit = async (data: InvoiceFormData) => {
     setIsSaving(true);
-    const completeInvoiceData: Omit<Invoice, '_id' | 'createdAt'> = { 
+    const completeInvoiceData: Omit<Invoice, '_id' | 'createdAt'> = {
       ...data,
       issueDate: format(data.issueDate, "yyyy-MM-dd"),
       dueDate: format(data.dueDate, "yyyy-MM-dd"),
-      items: data.items.map(item => ({ 
+      items: data.items.map(item => ({
           productId: item.productId,
           title: item.title,
           imageSrc: item.imageSrc || '',
-          quantity: item.quantity,
-          unitPrice: item.unitPrice, 
-          gstRate: item.gstRate,
-          taxAmount: item.taxAmount, 
-          totalAmount: item.totalAmount, 
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          gstRate: Number(item.gstRate),
+          taxAmount: Number(item.taxAmount),
+          totalAmount: Number(item.totalAmount),
       })),
-      subtotal, 
-      totalTax, 
-      grandTotal, 
+      subtotal,
+      totalTax,
+      grandTotal,
       companyInfo: defaultCompanyInfo,
       paymentInstructions: defaultPaymentInstructions,
       thankYouMessage: "Thank you for your business!"
@@ -218,17 +214,15 @@ export default function InvoiceForm() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        // Prioritize the 'error' field from the server's JSON response if available,
-        // as it might contain more specific details (e.g., the actual DB error message).
         const detailedErrorMessage = errorData.error || errorData.message || `Failed to save invoice to database (status: ${response.status})`;
         throw new Error(detailedErrorMessage);
       }
-      
+
       const result = await response.json();
 
       const newInvoiceNum = lastInvoiceNumber + 1;
       localStorage.setItem('invoiceflow_lastInvoiceNum', String(newInvoiceNum));
-      setLastInvoiceNumber(newInvoiceNum); 
+      setLastInvoiceNumber(newInvoiceNum);
 
       toast({
         title: "Invoice Saved & Prepared",
@@ -381,14 +375,13 @@ export default function InvoiceForm() {
                 {fields.map((field, index) => (
                   <div key={field.id} className="flex items-start md:items-center gap-4 p-4 border rounded-lg bg-muted/20 flex-col md:flex-row">
                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-2 items-center w-full">
-                      <span className="font-medium sm:col-span-2 md:col-span-2 lg:col-span-2 truncate" title={items[index].title}>{items[index].title}</span>
+                      <span className="font-medium sm:col-span-2 md:col-span-2 lg:col-span-2 truncate" title={watchedItems[index]?.title}>{watchedItems[index]?.title}</span>
                       
                       <FormFieldItem name={`items.${index}.quantity`} label="Quantity" srOnlyLabel={true} noBottomMargin>
                         <Input
                           type="number"
                           min="1"
-                          {...register(`items.${index}.quantity`, { valueAsNumber: true, onChange: (e) => handleQuantityChange(index, parseInt(e.target.value,10) || 1) })}
-                          defaultValue={items[index].quantity}
+                          {...register(`items.${index}.quantity`, { valueAsNumber: true, min: 1 })}
                           className="w-full md:w-20 text-center"
                         />
                          {errors.items?.[index]?.quantity && <p className="text-sm font-medium text-destructive">{errors.items[index]?.quantity?.message}</p>}
@@ -401,17 +394,16 @@ export default function InvoiceForm() {
                             type="number"
                             step="0.01"
                             min="0"
-                             {...register(`items.${index}.unitPrice`, { valueAsNumber: true, onChange: (e) => handleUnitPriceChange(index, parseFloat(e.target.value) || 0) })}
-                            defaultValue={items[index].unitPrice.toFixed(2)}
-                            className="w-full md:w-28 text-right pl-7 pr-2" 
+                            {...register(`items.${index}.unitPrice`, { valueAsNumber: true, min: 0 })}
+                            className="w-full md:w-28 text-right pl-7 pr-2"
                           />
                         </div>
                         {errors.items?.[index]?.unitPrice && <p className="text-sm font-medium text-destructive">{errors.items[index]?.unitPrice?.message}</p>}
                       </FormFieldItem>
                       
-                      <div className="text-sm text-muted-foreground text-center md:col-span-1 lg:col-span-1">GST: {items[index].gstRate.toFixed(0)}%</div>
+                      <div className="text-sm text-muted-foreground text-center md:col-span-1 lg:col-span-1">GST: {watchedItems[index]?.gstRate?.toFixed(0)}%</div>
                       
-                      <div className="text-sm font-semibold text-right md:col-span-1 lg:col-span-1">₹{items[index].totalAmount.toFixed(2)}</div>
+                      <div className="text-sm font-semibold text-right md:col-span-1 lg:col-span-1">₹{watchedItems[index]?.totalAmount?.toFixed(2)}</div>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10 self-center md:self-auto">
                       <Trash2 className="h-4 w-4" />
@@ -446,9 +438,9 @@ export default function InvoiceForm() {
         </Card>
 
         <div className="flex justify-end gap-2">
-           <Button type="button" variant="outline" onClick={() => { 
-               const currentInvNum = lastInvoiceNumber; 
-               methods.reset(); 
+           <Button type="button" variant="outline" onClick={() => {
+               const currentInvNum = lastInvoiceNumber;
+               methods.reset();
                setValue('invoiceNumber', `INV-${String(currentInvNum + 1).padStart(4, '0')}`);
                setValue('issueDate', new Date());
                setValue('dueDate', new Date(new Date().setDate(new Date().getDate() + 30)));
@@ -494,4 +486,3 @@ function FormFieldItem({ name, label, error, children, srOnlyLabel = false, noBo
     </div>
   );
 }
-
