@@ -42,6 +42,7 @@ const invoiceItemSchema = z.object({
   quantity: z.number().min(1, "Quantity must be at least 1"),
   unitPrice: z.number().min(0), // This is tax-inclusive price
   gstRate: z.number().min(0),
+  // Tax amount = (unitPrice * quantity) - ( (unitPrice * quantity) / (1 + gstRate/100) )
   taxAmount: z.number().min(0), 
   totalAmount: z.number().min(0), // unitPrice * quantity (total inclusive price for item)
 });
@@ -87,7 +88,7 @@ export default function InvoiceForm() {
     },
   });
 
-  const { control, handleSubmit, watch, setValue, formState: { errors } } = methods;
+  const { control, handleSubmit, watch, setValue, formState: { errors }, register } = methods;
   const { fields, append, remove, update } = useFieldArray({
     control,
     name: "items",
@@ -121,7 +122,6 @@ export default function InvoiceForm() {
   const calculateTotals = (currentItems: InvoiceItem[]) => {
     const grandTotal = currentItems.reduce((sum, item) => sum + item.totalAmount, 0);
     const totalTax = currentItems.reduce((sum, item) => sum + item.taxAmount, 0);
-    // Subtotal (pre-tax) = Grand Total (inclusive) - Total Tax
     const subtotal = grandTotal - totalTax;
     return { subtotal, totalTax, grandTotal };
   };
@@ -133,10 +133,8 @@ export default function InvoiceForm() {
     if (product) {
       const quantity = 1;
       const unitPriceInclusive = product.variantPrice; 
-      
-      const taxAmountPerUnit = unitPriceInclusive - (unitPriceInclusive / (1 + (product.gst / 100)));
-      const taxAmountForItem = taxAmountPerUnit * quantity;
       const totalAmountForItem = unitPriceInclusive * quantity;
+      const taxAmountForItem = totalAmountForItem - (totalAmountForItem / (1 + (product.gst / 100)));
       
       append({
         productId: product.id,
@@ -155,10 +153,8 @@ export default function InvoiceForm() {
     const item = items[index];
     if (item && newQuantity > 0) {
       const unitPriceInclusive = item.unitPrice;
-      
-      const taxAmountPerUnit = unitPriceInclusive - (unitPriceInclusive / (1 + (item.gstRate / 100)));
-      const taxAmountForItem = taxAmountPerUnit * newQuantity;
       const totalAmountForItem = unitPriceInclusive * newQuantity;
+      const taxAmountForItem = totalAmountForItem - (totalAmountForItem / (1 + (item.gstRate / 100)));
 
       update(index, { 
         ...item, 
@@ -173,10 +169,8 @@ export default function InvoiceForm() {
     const item = items[index];
     if (item && newUnitPrice >= 0) {
       const quantity = item.quantity;
-      
-      const taxAmountPerUnit = newUnitPrice - (newUnitPrice / (1 + (item.gstRate / 100)));
-      const taxAmountForItem = taxAmountPerUnit * quantity;
       const totalAmountForItem = newUnitPrice * quantity;
+      const taxAmountForItem = totalAmountForItem - (totalAmountForItem / (1 + (item.gstRate / 100)));
 
       update(index, { 
         ...item, 
@@ -224,7 +218,10 @@ export default function InvoiceForm() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to save invoice to database (status: ${response.status})`);
+        // Prioritize the 'error' field from the server's JSON response if available,
+        // as it might contain more specific details (e.g., the actual DB error message).
+        const detailedErrorMessage = errorData.error || errorData.message || `Failed to save invoice to database (status: ${response.status})`;
+        throw new Error(detailedErrorMessage);
       }
       
       const result = await response.json();
@@ -261,7 +258,7 @@ export default function InvoiceForm() {
           </CardHeader>
           <CardContent className="grid md:grid-cols-3 gap-6">
             <FormFieldItem name="invoiceNumber" label="Invoice Number" error={errors.invoiceNumber?.message}>
-              <Input {...methods.register("invoiceNumber")} readOnly className="bg-muted/50" />
+              <Input {...register("invoiceNumber")} readOnly className="bg-muted/50" />
             </FormFieldItem>
             <FormFieldItem name="issueDate" label="Issue Date" error={errors.issueDate?.message}>
               <Controller
@@ -335,35 +332,35 @@ export default function InvoiceForm() {
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-6">
               <FormFieldItem name="customer.name" label="Client Name" error={errors.customer?.name?.message}>
-                <Input {...methods.register("customer.name")} />
+                <Input {...register("customer.name")} />
               </FormFieldItem>
               <FormFieldItem name="customer.company" label="Company (Optional)" error={errors.customer?.company?.message}>
-                <Input {...methods.register("customer.company")} />
+                <Input {...register("customer.company")} />
               </FormFieldItem>
             </div>
             <FormFieldItem name="customer.addressLine1" label="Address Line 1" error={errors.customer?.addressLine1?.message}>
-              <Input {...methods.register("customer.addressLine1")} />
+              <Input {...register("customer.addressLine1")} />
             </FormFieldItem>
             <FormFieldItem name="customer.addressLine2" label="Address Line 2 (Optional)" error={errors.customer?.addressLine2?.message}>
-              <Input {...methods.register("customer.addressLine2")} />
+              <Input {...register("customer.addressLine2")} />
             </FormFieldItem>
             <div className="grid md:grid-cols-3 gap-6">
               <FormFieldItem name="customer.city" label="City" error={errors.customer?.city?.message}>
-                <Input {...methods.register("customer.city")} />
+                <Input {...register("customer.city")} />
               </FormFieldItem>
               <FormFieldItem name="customer.state" label="State/Province" error={errors.customer?.state?.message}>
-                <Input {...methods.register("customer.state")} />
+                <Input {...register("customer.state")} />
               </FormFieldItem>
               <FormFieldItem name="customer.zip" label="ZIP/Postal Code" error={errors.customer?.zip?.message}>
-                <Input {...methods.register("customer.zip")} />
+                <Input {...register("customer.zip")} />
               </FormFieldItem>
             </div>
              <div className="grid md:grid-cols-2 gap-6">
                 <FormFieldItem name="customer.email" label="Email (Optional)" error={errors.customer?.email?.message}>
-                    <Input type="email" {...methods.register("customer.email")} />
+                    <Input type="email" {...register("customer.email")} />
                 </FormFieldItem>
                 <FormFieldItem name="customer.phone" label="Phone (Optional)" error={errors.customer?.phone?.message}>
-                    <Input {...methods.register("customer.phone")} />
+                    <Input {...register("customer.phone")} />
                 </FormFieldItem>
             </div>
           </CardContent>
@@ -378,21 +375,23 @@ export default function InvoiceForm() {
           <CardContent className="space-y-4">
             {productsLoading ? <p>Loading products for search...</p> : <ProductSearch products={products} onProductSelect={handleAddProduct} />}
             {errors.items?.message && <p className="text-sm font-medium text-destructive">{errors.items.message}</p>}
+            {errors.items?.root?.message && <p className="text-sm font-medium text-destructive">{errors.items.root.message}</p>}
             {fields.length > 0 && (
               <div className="mt-4 space-y-4">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="flex items-center gap-4 p-4 border rounded-lg bg-muted/20">
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-x-4 gap-y-2 items-center">
-                      <span className="font-medium md:col-span-2 truncate" title={items[index].title}>{items[index].title}</span>
+                  <div key={field.id} className="flex items-start md:items-center gap-4 p-4 border rounded-lg bg-muted/20 flex-col md:flex-row">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-2 items-center w-full">
+                      <span className="font-medium sm:col-span-2 md:col-span-2 lg:col-span-2 truncate" title={items[index].title}>{items[index].title}</span>
                       
                       <FormFieldItem name={`items.${index}.quantity`} label="Quantity" srOnlyLabel={true} noBottomMargin>
                         <Input
                           type="number"
                           min="1"
-                          {...methods.register(`items.${index}.quantity`, { valueAsNumber: true })}
-                          onChange={(e) => handleQuantityChange(index, parseInt(e.target.value,10) || 1)}
+                          {...register(`items.${index}.quantity`, { valueAsNumber: true, onChange: (e) => handleQuantityChange(index, parseInt(e.target.value,10) || 1) })}
+                          defaultValue={items[index].quantity}
                           className="w-full md:w-20 text-center"
                         />
+                         {errors.items?.[index]?.quantity && <p className="text-sm font-medium text-destructive">{errors.items[index]?.quantity?.message}</p>}
                       </FormFieldItem>
 
                       <FormFieldItem name={`items.${index}.unitPrice`} label="Unit Price (incl. tax)" srOnlyLabel={true} noBottomMargin>
@@ -402,18 +401,19 @@ export default function InvoiceForm() {
                             type="number"
                             step="0.01"
                             min="0"
-                            {...methods.register(`items.${index}.unitPrice`, { valueAsNumber: true })}
-                            onChange={(e) => handleUnitPriceChange(index, parseFloat(e.target.value) || 0)}
+                             {...register(`items.${index}.unitPrice`, { valueAsNumber: true, onChange: (e) => handleUnitPriceChange(index, parseFloat(e.target.value) || 0) })}
+                            defaultValue={items[index].unitPrice.toFixed(2)}
                             className="w-full md:w-28 text-right pl-7 pr-2" 
                           />
                         </div>
+                        {errors.items?.[index]?.unitPrice && <p className="text-sm font-medium text-destructive">{errors.items[index]?.unitPrice?.message}</p>}
                       </FormFieldItem>
                       
-                      <span className="text-sm text-muted-foreground text-center">GST: {items[index].gstRate.toFixed(0)}%</span>
+                      <div className="text-sm text-muted-foreground text-center md:col-span-1 lg:col-span-1">GST: {items[index].gstRate.toFixed(0)}%</div>
                       
-                      <span className="text-sm font-semibold text-right">₹{items[index].totalAmount.toFixed(2)}</span>
+                      <div className="text-sm font-semibold text-right md:col-span-1 lg:col-span-1">₹{items[index].totalAmount.toFixed(2)}</div>
                     </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10">
+                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10 self-center md:self-auto">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -450,23 +450,21 @@ export default function InvoiceForm() {
                const currentInvNum = lastInvoiceNumber; 
                methods.reset(); 
                setValue('invoiceNumber', `INV-${String(currentInvNum + 1).padStart(4, '0')}`);
-               // Restore default dates after reset
                setValue('issueDate', new Date());
                setValue('dueDate', new Date(new Date().setDate(new Date().getDate() + 30)));
-               // Attempt to restore customer data if it was in localStorage
                 const storedCustomer = localStorage.getItem(LOCAL_STORAGE_CUSTOMER_KEY);
                 if (storedCustomer) {
                   try {
                     const customerData = JSON.parse(storedCustomer);
                     setValue('customer', customerData, { shouldValidate: true });
-                  } catch (e) { /* ignore */ }
+                  } catch (e) { console.error("Failed to restore customer data after reset", e); }
                 }
              }}
              disabled={isSaving}
            >
             Clear Form
           </Button>
-          <Button type="submit" variant="default" className="bg-accent hover:bg-accent/90" disabled={isSaving}>
+          <Button type="submit" variant="default" className="bg-accent hover:bg-accent/90" disabled={isSaving || fields.length === 0}>
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
             {isSaving ? 'Processing...' : 'Preview & Generate Invoice'}
           </Button>
@@ -489,7 +487,7 @@ interface FormFieldItemProps {
 
 function FormFieldItem({ name, label, error, children, srOnlyLabel = false, noBottomMargin = false }: FormFieldItemProps) {
   return (
-    <div className={cn("space-y-1", noBottomMargin ? "" : "mb-4")}>
+    <div className={cn("space-y-1 w-full", noBottomMargin ? "" : "mb-4")}>
       <Label htmlFor={name} className={cn(srOnlyLabel ? "sr-only" : "")}>{label}</Label>
       {children}
       {error && <p className="text-sm font-medium text-destructive">{error}</p>}
