@@ -18,7 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 shadow-sm">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold md:text-base text-primary">
           <Cpu className="h-6 w-6" />
-          <span className="font-bold text-xl">QuotationFlow</span>
+          <span className="font-bold text-xl">PerformaFlow</span>
         </Link>
         <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6 ml-auto">
           {navItems.map((item) => (
@@ -42,7 +42,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <nav className="grid gap-6 text-lg font-medium pt-8">
               <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-primary mb-4">
                 <Cpu className="h-6 w-6" />
-                <span className="font-bold text-xl">QuotationFlow</span>
+                <span className="font-bold text-xl">PerformaFlow</span>
               </Link>
               {navItems.map((item) => (
                 <Link
@@ -62,7 +62,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <footer className="border-t bg-background p-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} QuotationFlow. All rights reserved.
+        © {new Date().getFullYear()} PerformaFlow. All rights reserved.
       </footer>
     </div>
   );
