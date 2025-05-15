@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'InvoiceFlow - Create & Manage Invoices',
-  description: 'Easily create and manage professional invoices with InvoiceFlow.',
+  title: 'QuotationFlow - Create & Manage Quotations',
+  description: 'Easily create and manage professional quotations with QuotationFlow.',
 };
 
 export default function RootLayout({

@@ -16,7 +16,7 @@ interface ProductContextType {
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'invoiceflow_products';
+const LOCAL_STORAGE_KEY = 'quotationflow_products'; // Changed from invoiceflow_products
 
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -30,14 +30,12 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Failed to load products from localStorage:", error);
-      // Potentially clear corrupted storage
-      // localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (!loading) { // Only save to localStorage after initial load
+    if (!loading) { 
       try {
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(products));
       } catch (error) {
@@ -48,9 +46,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
 
   const addProduct = (product: Product) => {
     setProducts((prevProducts) => {
-      // Prevent duplicates by ID (or SKU)
       if (prevProducts.find(p => p.id === product.id || p.sku === product.sku)) {
-        // Optionally, update if exists or throw error/show toast
         console.warn(`Product with ID ${product.id} or SKU ${product.sku} already exists.`);
         return prevProducts;
       }
@@ -65,7 +61,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       );
       const updatedProducts = prevProducts.map(pp => {
         const existingNew = newProducts.find(np => np.sku === pp.sku || np.id === pp.id);
-        return existingNew ? { ...pp, ...existingNew } : pp; // Update existing
+        return existingNew ? { ...pp, ...existingNew } : pp; 
       });
       return [...updatedProducts, ...productsToAdd];
     });

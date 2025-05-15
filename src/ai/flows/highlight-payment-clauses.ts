@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Highlights payment clauses based on customer payment history.
+ * @fileOverview Highlights payment clauses based on customer payment history, relevant for quotations that may become orders.
  *
  * - highlightPaymentClauses - A function that takes customer payment history and returns highlighted payment clauses.
  * - HighlightPaymentClausesInput - The input type for the highlightPaymentClauses function.

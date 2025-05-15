@@ -1,27 +1,26 @@
 "use client";
 
 import React, { useState } from 'react';
-import { highlightPaymentClauses } from '@/ai/flows/highlight-payment-clauses'; // Adjust path if needed
+import { highlightPaymentClauses } from '@/ai/flows/highlight-payment-clauses'; 
 import type { HighlightPaymentClausesInput } from '@/ai/flows/highlight-payment-clauses';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Wand2, AlertTriangle } from 'lucide-react'; // Using Wand2 for AI/magic
+import { Wand2, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import ReactMarkdown from 'react-markdown'; // For rendering markdown
+import ReactMarkdown from 'react-markdown';
 
-// Default Payment Policy Example (can be fetched or configured elsewhere in a real app)
 const defaultPaymentPolicy = `
 Standard Payment Terms:
-1.  Payment Due Date: All invoices are due within 30 days of the invoice date (Net 30).
-2.  New Customer Incentive: For first-time customers in good standing, a 5% discount is offered if payment is made within 10 days.
+1.  Payment Due Date: All payments detailed in quotations are due within 30 days of the quotation acceptance or order confirmation date (Net 30).
+2.  New Customer Incentive: For first-time customers in good standing, a 5% discount is offered if payment is made within 10 days of acceptance.
 3.  Late Payment Penalty: A late fee of 1.5% per month will be applied to outstanding balances after the due date.
 4.  Payment Methods: We accept payment via bank transfer, credit card, or company check.
-5.  Disputed Charges: Any disputed charges must be reported within 15 days of the invoice date.
+5.  Disputed Charges: Any disputed charges must be reported within 15 days of the quotation or order confirmation.
 6.  Installment Plan: For orders over $10,000, an installment plan may be available upon request and credit approval.
-7.  Delinquency Protocol: Accounts overdue by more than 60 days may be subject to collections and suspension of services.
+7.  Delinquency Protocol: Accounts overdue by more than 60 days may be subject to collections and suspension of services/shipments.
 8.  Prepayment Discount: A 2% discount is available for full prepayment on orders exceeding $5,000.
 `;
 
@@ -79,7 +78,7 @@ export default function PaymentClauseHighlighter() {
             id="paymentHistory"
             value={paymentHistory}
             onChange={(e) => setPaymentHistory(e.target.value)}
-            placeholder="e.g., New customer. OR Consistently pays on time. OR History of late payments, currently 45 days overdue on last invoice."
+            placeholder="e.g., New customer. OR Consistently pays on time. OR History of late payments, currently 45 days overdue on last payment."
             rows={6}
             className="border-input focus:border-primary"
           />

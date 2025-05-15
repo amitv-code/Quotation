@@ -1,17 +1,17 @@
 "use client";
-import InvoiceForm from "@/components/invoice/InvoiceForm";
+import QuotationForm from "@/components/quotation/QuotationForm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function CreateInvoicePage() {
+export default function CreateQuotationPage() {
   return (
     <div className="container mx-auto py-8">
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle className="text-3xl font-bold tracking-tight">Create New Invoice</CardTitle>
-          <CardDescription>Fill in the details below to generate a new invoice.</CardDescription>
+          <CardTitle className="text-3xl font-bold tracking-tight">Create New Quotation</CardTitle>
+          <CardDescription>Fill in the details below to generate a new quotation.</CardDescription>
         </CardHeader>
         <CardContent>
-          <InvoiceForm />
+          <QuotationForm />
         </CardContent>
       </Card>
     </div>

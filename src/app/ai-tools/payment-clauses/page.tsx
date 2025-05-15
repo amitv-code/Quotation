@@ -10,7 +10,7 @@ export default function AIPaymentClausesPage() {
           <CardTitle className="text-3xl font-bold tracking-tight">AI Payment Clause Highlighter</CardTitle>
           <CardDescription>
             Analyze customer payment history against your company's payment policy. 
-            The AI will highlight relevant clauses, suggesting terms adjustments based on risk profile.
+            The AI will highlight relevant clauses, suggesting terms adjustments based on risk profile for quotations or orders.
           </CardDescription>
         </CardHeader>
         <CardContent>

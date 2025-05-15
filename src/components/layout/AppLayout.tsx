@@ -2,12 +2,12 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, FileText, Package, Cpu, Lightbulb, History } from 'lucide-react'; // Added History icon
+import { Menu, FileText, Package, Cpu, Lightbulb, History } from 'lucide-react';
 
 const navItems = [
-  { href: '/', label: 'Create Invoice', icon: FileText },
+  { href: '/', label: 'Create Quotation', icon: FileText },
   { href: '/products', label: 'Manage Products', icon: Package },
-  { href: '/invoices/history', label: 'Invoice History', icon: History },
+  { href: '/quotations/history', label: 'Quotation History', icon: History },
   { href: '/ai-tools/payment-clauses', label: 'AI Payment Clauses', icon: Lightbulb },
 ];
 
@@ -17,7 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 shadow-sm">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold md:text-base text-primary">
           <Cpu className="h-6 w-6" />
-          <span className="font-bold text-xl">InvoiceFlow</span>
+          <span className="font-bold text-xl">QuotationFlow</span>
         </Link>
         <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6 ml-auto">
           {navItems.map((item) => (
@@ -41,7 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <nav className="grid gap-6 text-lg font-medium pt-8">
               <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-primary mb-4">
                 <Cpu className="h-6 w-6" />
-                <span className="font-bold text-xl">InvoiceFlow</span>
+                <span className="font-bold text-xl">QuotationFlow</span>
               </Link>
               {navItems.map((item) => (
                 <Link
@@ -61,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <footer className="border-t bg-background p-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} InvoiceFlow. All rights reserved.
+        © {new Date().getFullYear()} QuotationFlow. All rights reserved.
       </footer>
     </div>
   );

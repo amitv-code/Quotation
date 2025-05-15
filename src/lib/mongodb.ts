@@ -2,7 +2,7 @@
 import { MongoClient, Db, MongoNetworkError, MongoServerSelectionError } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const MONGODB_DB = process.env.MONGODB_DB_NAME || 'invoiceflow'; // Default DB name if not set
+const MONGODB_DB = process.env.MONGODB_DB_NAME || 'quotationflow'; // Default DB name changed
 
 if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env. See .env.example for guidance.');
@@ -13,7 +13,6 @@ interface CachedMongoConnection {
   db: Db | null;
 }
 
-// Extend global to add our cached connection
 declare global {
   var mongo: CachedMongoConnection | undefined;
 }
@@ -26,7 +25,6 @@ if (!cached) {
 
 export async function connectToDatabase(): Promise<{ client: MongoClient, db: Db }> {
   if (cached!.client && cached!.db) {
-    // Ensure client is connected before returning
     try {
       await cached!.client.db(MONGODB_DB).command({ ping: 1 });
     } catch (e) {
@@ -67,4 +65,3 @@ export async function connectToDatabase(): Promise<{ client: MongoClient, db: Db
 
   return { client, db };
 }
-
