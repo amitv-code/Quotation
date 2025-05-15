@@ -32,7 +32,15 @@ export default function DashboardPage() {
       try {
         const response = await fetch('/api/quotations'); // Fetch all quotations
         if (!response.ok) {
-          throw new Error('Failed to fetch quotations data');
+          let errorMessage = 'Failed to fetch quotations data';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch (e) {
+            // Failed to parse error JSON, use status text
+            errorMessage = `Failed to fetch quotations data. Status: ${response.status} ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
         }
         const data: SavedQuotation[] = await response.json();
         setQuotations(data);
