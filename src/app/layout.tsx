@@ -1,9 +1,11 @@
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import AppLayout from '@/components/layout/AppLayout';
 import { Toaster } from "@/components/ui/toaster";
 import { ProductProvider } from '@/contexts/ProductContext';
+import AuthProvider from '@/components/layout/AuthProvider'; // Added AuthProvider
 
 const inter = Inter({
   subsets: ['latin'],
@@ -23,10 +25,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <ProductProvider>
-          <AppLayout>{children}</AppLayout>
-          <Toaster />
-        </ProductProvider>
+        <AuthProvider> {/* Wrapped with AuthProvider */}
+          <ProductProvider>
+            <AppLayout>{children}</AppLayout>
+            <Toaster />
+          </ProductProvider>
+        </AuthProvider>
       </body>
     </html>
   );
