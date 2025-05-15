@@ -7,14 +7,21 @@ import { Button } from '@/components/ui/button';
 import { FileText } from 'lucide-react';
 import QuotationHistoryClient from '@/components/quotation/QuotationHistoryClient';
 
-export const revalidate = 0; // Disable caching for this page to always fetch fresh data
+export const revalidate = 0; 
 
 export default async function QuotationHistoryPage() {
-  let quotations: SavedQuotation[] = [];
+  let initialQuotations: SavedQuotation[] = [];
   let error: string | null = null;
+  let uniqueManagers: string[] = ["All"]; // Start with "All"
 
   try {
-    quotations = await getQuotations();
+    // Fetch all quotations to get initial data and manager list
+    initialQuotations = await getQuotations(); 
+    
+    const managerSet = new Set<string>();
+    initialQuotations.forEach(q => managerSet.add(q.relationshipManager));
+    uniqueManagers = ["All", ...Array.from(managerSet).sort()];
+
   } catch (e) {
     console.error("Failed to fetch quotations:", e);
     error = e instanceof Error ? e.message : "An unknown error occurred while fetching quotations.";
@@ -26,16 +33,16 @@ export default async function QuotationHistoryPage() {
         <CardHeader>
           <CardTitle className="text-3xl font-bold tracking-tight">Quotation History</CardTitle>
           <CardDescription>
-            View all previously created and saved quotations.
+            View, filter, and manage all previously created quotations.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
-            <div className="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+            <div className="p-4 mb-4 text-sm text-destructive bg-destructive/10 rounded-lg" role="alert">
               <span className="font-medium">Error:</span> {error}
             </div>
           )}
-          {!error && quotations.length === 0 && (
+          {!error && initialQuotations.length === 0 && ( // Check initialQuotations instead of quotations
             <div className="text-center py-10">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-2 text-lg font-medium">No Quotations Found</h3>
@@ -49,8 +56,11 @@ export default async function QuotationHistoryPage() {
               </div>
             </div>
           )}
-          {!error && quotations.length > 0 && (
-            <QuotationHistoryClient quotations={quotations} />
+          {!error && ( // Always render QuotationHistoryClient if no error, it handles its own "no results"
+             <QuotationHistoryClient 
+                initialQuotations={initialQuotations} 
+                allManagers={uniqueManagers} 
+             />
           )}
         </CardContent>
       </Card>

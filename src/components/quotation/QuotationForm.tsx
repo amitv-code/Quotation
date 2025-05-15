@@ -5,7 +5,8 @@ import React, { useState, useEffect } from 'react';
 import { useForm, FormProvider, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import type { Quotation, Customer, QuotationItem } from '@/types';
+import type { Quotation, Customer, QuotationItem, QuotationStatus } from '@/types';
+import { QUOTATION_STATUSES } from '@/types'; // Import statuses
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -54,6 +55,7 @@ const quotationSchema = z.object({
   dueDate: z.date({ required_error: "Due date is required."}),
   customer: customerSchema,
   items: z.array(quotationItemSchema).min(1, "At least one item is required"),
+  // Status is not part of the form schema, it's added programmatically
 });
 
 type QuotationFormData = z.infer<typeof quotationSchema>;
@@ -74,7 +76,7 @@ export default function QuotationForm() {
       quotationNumber: '',
       relationshipManager: '',
       issueDate: new Date(),
-      dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+      dueDate: new Date(new Date().setDate(new Date().getDate() + 30)), // Default due date 30 days from issue
       customer: {
         name: '',
         company: '',
@@ -90,7 +92,7 @@ export default function QuotationForm() {
     },
   });
 
-  const { control, handleSubmit, watch, setValue, formState: { errors }, register } = methods;
+  const { control, handleSubmit, watch, setValue, formState: { errors }, register, reset } = methods;
   const { fields, append, remove } = useFieldArray({
     control,
     name: "items",
@@ -177,6 +179,7 @@ export default function QuotationForm() {
       ...data,
       issueDate: format(data.issueDate, "yyyy-MM-dd"),
       dueDate: format(data.dueDate, "yyyy-MM-dd"),
+      status: 'In Process', // Default status for new quotations
       items: data.items.map(item => ({
           productId: item.productId,
           title: item.title,
@@ -218,10 +221,18 @@ export default function QuotationForm() {
       const newQuotationNum = lastQuotationNumber + 1;
       localStorage.setItem('quotationflow_lastQuotationNum', String(newQuotationNum));
       setLastQuotationNumber(newQuotationNum);
+      // Reset form after successful submission, then set new quotation number and restore customer
+      const currentCustomerData = watch('customer');
+      reset(); // Resets to default values
+      setValue('quotationNumber', `QUO-${String(newQuotationNum + 1).padStart(4, '0')}`);
+      setValue('issueDate', new Date());
+      setValue('dueDate', new Date(new Date().setDate(new Date().getDate() + 30)));
+      setValue('customer', currentCustomerData); // Restore customer details
+
 
       toast({
         title: "Quotation Saved & Prepared",
-        description: `Quotation ${completeQuotationData.quotationNumber} saved to database (ID: ${result.quotationId}) and ready for preview.`,
+        description: `Quotation ${completeQuotationData.quotationNumber} saved with ID: ${result.quotationId}. Ready for preview.`,
       });
       router.push('/quotation/preview');
     } catch (e) {
@@ -235,6 +246,29 @@ export default function QuotationForm() {
       setIsSaving(false);
     }
   };
+  
+  const handleClearForm = () => {
+    const currentQuoNum = lastQuotationNumber; // Use the last saved number before incrementing for the next one
+    const customerDataFromStorage = localStorage.getItem(LOCAL_STORAGE_CUSTOMER_KEY);
+    reset(); // Resets all fields to their defaultValues
+
+    // Set new quotation number
+    setValue('quotationNumber', `QUO-${String(currentQuoNum + 1).padStart(4, '0')}`);
+    // Reset dates
+    setValue('issueDate', new Date());
+    setValue('dueDate', new Date(new Date().setDate(new Date().getDate() + 30)));
+
+    // Restore customer data if it exists
+    if (customerDataFromStorage) {
+      try {
+        const parsedCustomer = JSON.parse(customerDataFromStorage);
+        setValue('customer', parsedCustomer, { shouldValidate: true });
+      } catch (e) {
+        console.error("Failed to restore customer data after reset", e);
+      }
+    }
+  };
+
 
   return (
     <FormProvider {...methods}>
@@ -312,7 +346,7 @@ export default function QuotationForm() {
                 name="relationshipManager"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || ""}>
                     <SelectTrigger>
                       <UserCircle className="mr-2 h-4 w-4 text-muted-foreground" />
                       <SelectValue placeholder="Select Manager" />
@@ -388,52 +422,61 @@ export default function QuotationForm() {
                       <span className="font-medium sm:col-span-2 md:col-span-2 lg:col-span-2 truncate" title={watchedItems[index]?.title}>{watchedItems[index]?.title}</span>
                       
                       <FormFieldItem name={`items.${index}.quantity`} label="Quantity" srOnlyLabel={true} noBottomMargin>
-                        <Input
-                          type="number"
-                          min="1"
-                          {...register(`items.${index}.quantity`, { 
-                            valueAsNumber: true,
-                            onChange: (e) => {
-                              const value = parseInt(e.target.value, 10);
-                              if (value > 0) {
-                                setValue(`items.${index}.quantity`, value, { shouldValidate: true, shouldDirty: true });
-                              } else if (e.target.value === "") {
-                                setValue(`items.${index}.quantity`, 0, { shouldValidate: true, shouldDirty: true }); // Allow empty to be handled by validation
-                              }
-                            }
-                          })}
-                          className="w-full md:w-20 text-center"
-                        />
+                         <Controller
+                            name={`items.${index}.quantity`}
+                            control={control}
+                            defaultValue={1}
+                            render={({ field: controllerField }) => (
+                              <Input
+                                type="number"
+                                {...register(`items.${index}.quantity`, { valueAsNumber: true, min: 1})}
+                                value={controllerField.value || ''}
+                                onChange={(e) => {
+                                  const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                  // We set 0 if empty to allow form validation to catch it as < 1 if needed
+                                  // Or handle it as just empty and let validation decide.
+                                  // Forcing value to 1 if less than 1 can be an alternative here too.
+                                  controllerField.onChange(value >= 1 ? value : (e.target.value === '' ? '' : 1));
+                                  setValue(`items.${index}.quantity`, value >= 1 ? value : (e.target.value === '' ? 0 : 1), {shouldValidate: true, shouldDirty: true});
+                                }}
+                                min="1"
+                                className="w-full md:w-20 text-center"
+                              />
+                            )}
+                          />
                          {errors.items?.[index]?.quantity && <p className="text-sm font-medium text-destructive">{errors.items[index]?.quantity?.message}</p>}
                       </FormFieldItem>
 
                       <FormFieldItem name={`items.${index}.unitPrice`} label="Unit Price (incl. tax)" srOnlyLabel={true} noBottomMargin>
                         <div className="relative">
                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">₹</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            {...register(`items.${index}.unitPrice`, { 
-                              valueAsNumber: true,
-                              onChange: (e) => {
-                                const value = parseFloat(e.target.value);
-                                if (!isNaN(value) && value >= 0) {
-                                   setValue(`items.${index}.unitPrice`, value, { shouldValidate: true, shouldDirty: true });
-                                } else if (e.target.value === "") {
-                                   setValue(`items.${index}.unitPrice`, 0, { shouldValidate: true, shouldDirty: true }); 
-                                }
-                              }
-                            })}
-                            className="w-full md:w-28 text-right pl-7 pr-2"
-                          />
+                           <Controller
+                              name={`items.${index}.unitPrice`}
+                              control={control}
+                              defaultValue={0}
+                              render={({ field: controllerField }) => (
+                                <Input
+                                  type="number"
+                                  {...register(`items.${index}.unitPrice`, { valueAsNumber: true, min: 0})}
+                                  value={controllerField.value || ''}
+                                  onChange={(e) => {
+                                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                    controllerField.onChange(value >=0 ? value : (e.target.value === '' ? '' : 0));
+                                    setValue(`items.${index}.unitPrice`, value >=0 ? value : (e.target.value === '' ? 0 : 0), {shouldValidate: true, shouldDirty: true});
+                                  }}
+                                  step="0.01"
+                                  min="0"
+                                  className="w-full md:w-28 text-right pl-7 pr-2"
+                                />
+                              )}
+                            />
                         </div>
                         {errors.items?.[index]?.unitPrice && <p className="text-sm font-medium text-destructive">{errors.items[index]?.unitPrice?.message}</p>}
                       </FormFieldItem>
                       
                       <div className="text-sm text-muted-foreground text-center md:col-span-1 lg:col-span-1">GST: {watchedItems[index]?.gstRate?.toFixed(0)}%</div>
                       
-                      <div className="text-sm font-semibold text-right md:col-span-1 lg:col-span-1">₹{watchedItems[index]?.totalAmount?.toFixed(2)}</div>
+                      <div className="text-sm font-semibold text-right md:col-span-1 lg:col-span-1">₹{watchedItems[index]?.totalAmount?.toFixed(2) || '0.00'}</div>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:bg-destructive/10 self-center md:self-auto">
                       <Trash2 className="h-4 w-4" />
@@ -467,22 +510,7 @@ export default function QuotationForm() {
         </Card>
 
         <div className="flex justify-end gap-2">
-           <Button type="button" variant="outline" onClick={() => {
-               const currentQuoNum = lastQuotationNumber;
-               methods.reset();
-               setValue('quotationNumber', `QUO-${String(currentQuoNum + 1).padStart(4, '0')}`);
-               setValue('issueDate', new Date());
-               setValue('dueDate', new Date(new Date().setDate(new Date().getDate() + 30)));
-                const storedCustomer = localStorage.getItem(LOCAL_STORAGE_CUSTOMER_KEY);
-                if (storedCustomer) {
-                  try {
-                    const customerData = JSON.parse(storedCustomer);
-                    setValue('customer', customerData, { shouldValidate: true });
-                  } catch (e) { console.error("Failed to restore customer data after reset", e); }
-                }
-             }}
-             disabled={isSaving}
-           >
+           <Button type="button" variant="outline" onClick={handleClearForm} disabled={isSaving}>
             Clear Form
           </Button>
           <Button type="submit" variant="default" className="bg-accent hover:bg-accent/90" disabled={isSaving || fields.length === 0}>

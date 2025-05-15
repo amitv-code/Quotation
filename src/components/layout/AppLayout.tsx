@@ -2,9 +2,10 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, FileText, Package, Cpu, Lightbulb, History } from 'lucide-react';
+import { Menu, FileText, Package, Cpu, Lightbulb, History, LayoutDashboard } from 'lucide-react';
 
 const navItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/', label: 'Create Quotation', icon: FileText },
   { href: '/products', label: 'Manage Products', icon: Package },
   { href: '/quotations/history', label: 'Quotation History', icon: History },

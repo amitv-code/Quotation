@@ -14,6 +14,22 @@ export default function Loading() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Filter Skeletons */}
+          <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+            <div className="grid md:grid-cols-3 gap-4 items-end">
+              <div>
+                <Skeleton className="h-5 w-1/3 mb-1" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div>
+                <Skeleton className="h-5 w-1/3 mb-1" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <Skeleton className="h-10 w-full md:w-auto" />
+            </div>
+          </div>
+          
+          {/* Table Skeletons */}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -21,8 +37,8 @@ export default function Loading() {
                   <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                   <TableHead><Skeleton className="h-5 w-32" /></TableHead>
                   <TableHead><Skeleton className="h-5 w-28" /></TableHead>
-                  <TableHead><Skeleton className="h-5 w-28" /></TableHead>
                   <TableHead><Skeleton className="h-5 w-32" /></TableHead> {/* Relationship Manager */}
+                  <TableHead><Skeleton className="h-5 w-24" /></TableHead> {/* Status */}
                   <TableHead className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableHead>
                   <TableHead className="text-center"><Skeleton className="h-5 w-20 mx-auto" /></TableHead>
                 </TableRow>
@@ -33,8 +49,8 @@ export default function Loading() {
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-36" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-28" /></TableCell> {/* Relationship Manager */}
+                    <TableCell><Skeleton className="h-8 w-28 rounded-md" /></TableCell> {/* Status Select Skeleton */}
                     <TableCell className="text-right"><Skeleton className="h-5 w-16 ml-auto" /></TableCell>
                     <TableCell className="text-center"><Skeleton className="h-8 w-20 mx-auto rounded-md" /></TableCell>
                   </TableRow>
